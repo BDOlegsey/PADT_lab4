@@ -28,7 +28,6 @@ public:
     bool IsFinite() const;
     bool IsTransfinite() const;
     uint64_t FiniteValue() const;
-
     Ordinal operator+(const Ordinal& other) const;
     Ordinal operator*(const Ordinal& other) const;
     Ordinal Pow(const Ordinal& exp) const;
@@ -47,7 +46,8 @@ private:
     std::vector<Term> terms_;
 
     static Ordinal FromTerms(std::vector<Term>&& terms);
-    Ordinal IntPow(uint64_t n) const;
+    Ordinal IntPow(uint64_t n) const; 
+    
     static Ordinal ShiftExpDown(const Ordinal& e);
 };
 

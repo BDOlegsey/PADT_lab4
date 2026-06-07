@@ -19,13 +19,15 @@ public:
 
     LazySequence();
     LazySequence(const T* items, int count);
+
     LazySequence(Rule rule, const T* seed, int seed_count);
+    
     LazySequence(const LazySequence<T>& other);
     LazySequence<T>& operator=(const LazySequence<T>& other);
     ~LazySequence() = default;
 
     T GetFirst();
-    T GetLast();
+    T GetLast(); 
     T Get(int index);
     LazySequence<T>* GetSubsequence(int start, int end);
 
@@ -53,7 +55,7 @@ private:
         std::vector<T> materialized;
         Generator<T> generator;
         Cardinal length;
-
+        
         std::shared_ptr<LazySequence<T>> tail;
 
         State() : generator(), length(Cardinal::Finite(0)) {}

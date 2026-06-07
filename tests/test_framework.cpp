@@ -10,9 +10,9 @@ int t_total  = 0;
 void ResetCounters() { t_passed = t_failed = t_total = 0; }
 
 void PrintSummary() {
-    std::printf("All: %3d\n", t_total);
-    std::printf("Done: %3d\n", t_passed);
-    std::printf("Fall: %3d\n", t_failed);
+    std::printf("All:      %3d\n", t_total);
+    std::printf("Done:     %3d\n", t_passed);
+    std::printf("Fall:     %3d\n", t_failed);
     std::printf("Coverage: %3d%%\n", t_total ? (t_passed * 100 / t_total) : 0);
 }
 

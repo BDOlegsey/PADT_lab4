@@ -2,12 +2,13 @@
 #define LAB4_STREAM_TPP
 
 #include "stream.h"
+#include <fstream>
 #include <sstream>
 #include <string>
 
 namespace lab4 {
 
-// ReadOnlyStream 
+// ReadOnlyStream
 
 template <class T>
 ReadOnlyStream<T>::ReadOnlyStream(const std::vector<T>& data)
@@ -26,6 +27,17 @@ ReadOnlyStream<T>::ReadOnlyStream(const std::string& str,
     std::istringstream ss(str);
     std::string token;
     while (ss >> token) data_.push_back(deser(token));
+}
+
+template <class T>
+ReadOnlyStream<T>::ReadOnlyStream(const std::string& filename, bool /*is_file*/,
+                                   std::function<T(const std::string&)> deser)
+    : cursor_(0), open_(false) {
+    std::ifstream file(filename);
+    if (!file.is_open())
+        throw InvalidArgument("ReadOnlyStream: cannot open file: " + filename);
+    std::string token;
+    while (file >> token) data_.push_back(deser(token));
 }
 
 template <class T>

@@ -6,7 +6,6 @@
 
 namespace lab4 {
 
-// represents natural numbers or omega (first transfinite)
 class Cardinal {
 public:
     static Cardinal Finite(size_t n);
@@ -14,7 +13,7 @@ public:
 
     bool IsFinite() const;
     bool IsOmega() const;
-    size_t FiniteValue() const;  // undefined if omega
+    size_t FiniteValue() const;
 
     Cardinal operator+(const Cardinal& other) const;
     Cardinal operator+(size_t n) const;

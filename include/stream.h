@@ -18,6 +18,8 @@ public:
     explicit ReadOnlyStream(const std::vector<T>& data);
     ReadOnlyStream(const T* data, size_t count);
     ReadOnlyStream(const std::string& str, std::function<T(const std::string&)> deser);
+    ReadOnlyStream(const std::string& filename, bool is_file,
+                   std::function<T(const std::string&)> deser);
 
     void Open();
     void Close();
@@ -49,6 +51,7 @@ public:
     size_t Write(const T& item);
     size_t GetPosition() const;
 
+    // retrieve all written data
     const std::vector<T>& Data() const;
 
 private:

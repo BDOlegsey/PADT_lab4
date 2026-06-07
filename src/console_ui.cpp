@@ -1,11 +1,52 @@
 #include "console_ui.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <string>
 
 namespace lab4 {
+
+static int FibRule(const std::vector<int>& m) {
+    size_t n = m.size();
+    return m[n-1] + m[n-2];
+}
+
+static int NatRule(const std::vector<int>& m) {
+    return (int)m.size();
+}
+
+static int ParseInt(const std::string& s) {
+    return std::stoi(s);
+}
+
+static Ordinal ParseOrdinal(const std::string& s) {
+    if (s == "w") return Ordinal::Omega();
+    if (s.rfind("w+", 0) == 0) {
+        int n = std::stoi(s.substr(2));
+        return Ordinal::Omega() + Ordinal::Finite((uint64_t)n);
+    }
+    if (s.rfind("w*", 0) == 0) {
+        int n = std::stoi(s.substr(2));
+        return Ordinal::Omega() * Ordinal::Finite((uint64_t)n);
+    }
+    if (s.rfind("w^", 0) == 0) {
+        std::string rest = s.substr(2);
+        size_t plus = rest.find('+');
+        if (plus == std::string::npos) {
+            int k = std::stoi(rest);
+            return Ordinal::Omega().Pow(Ordinal::Finite((uint64_t)k));
+        }
+        int k = std::stoi(rest.substr(0, plus));
+        Ordinal tail = ParseOrdinal(rest.substr(plus + 1));
+        return Ordinal::Omega().Pow(Ordinal::Finite((uint64_t)k)) + tail;
+    }
+    // finite
+    return Ordinal::Finite((uint64_t)std::stoi(s));
+}
+
 namespace tests { void RunAllTests(); }
 }  // namespace lab4
 
@@ -51,20 +92,14 @@ void ConsoleUi::Run() {
                 case 3: {
                     delete seq_a_;
                     int seed[] = {1, 1};
-                    seq_a_ = new LazySequence<int>(
-                        [](const std::vector<int>& m) -> int {
-                            size_t n = m.size();
-                            return m[n-1] + m[n-2];
-                        }, seed, 2);
+                    seq_a_ = new LazySequence<int>(FibRule, seed, 2);
                     std::printf("A = infinite Fibonacci sequence\n");
                     break;
                 }
                 case 4: {
                     delete seq_a_;
                     int seed[] = {0};
-                    seq_a_ = new LazySequence<int>(
-                        [](const std::vector<int>& m) -> int { return (int)m.size(); },
-                        seed, 1);
+                    seq_a_ = new LazySequence<int>(NatRule, seed, 1);
                     std::printf("A = infinite naturals 0,1,2,...\n");
                     break;
                 }
@@ -221,12 +256,29 @@ void ConsoleUi::StreamDemo() {
     rs.Close();
 
     // string stream
-    ReadOnlyStream<int> ss("100 200 300", [](const std::string& s) { return std::stoi(s); });
+    ReadOnlyStream<int> ss("100 200 300", ParseInt);
     ss.Open();
     std::printf("from string: ");
     while (!ss.IsEndOfStream()) std::printf("%d ", ss.Read());
     std::printf("\n");
     ss.Close();
+
+    // file stream demo
+    {
+        const char* fname = "/tmp/lab4_demo_stream.txt";
+        {
+            std::ofstream f(fname);
+            for (int i = 1; i <= 20; ++i) f << i << " ";
+        }
+        ReadOnlyStream<int> fs(std::string(fname), true, ParseInt);
+        fs.Open();
+        std::printf("from file (1..20): ");
+        int s = 0;
+        while (!fs.IsEndOfStream()) { int v = fs.Read(); std::printf("%d ", v); s += v; }
+        std::printf("\nsum = %d\n", s);
+        fs.Close();
+        std::remove(fname);
+    }
 }
 
 void ConsoleUi::OrdinalMenu() {
@@ -254,16 +306,21 @@ void ConsoleUi::OrdinalMenu() {
             continue;
         }
         if (c == 1) {
-            std::printf("ordinal format: finite number (e.g. 5) or 'w' or 'w+k' or 'w*k' or 'w^k'\n");
-            std::printf("Enter first ordinal as finite number n (0 = 0, >0 = n): ");
-            int a_val = ReadInt("");
-            std::printf("Enter second ordinal as finite number m: ");
-            int b_val = ReadInt("");
-            Ordinal a = Ordinal::Finite((uint64_t)a_val);
-            Ordinal b = Ordinal::Finite((uint64_t)b_val);
-            std::printf("%s + %s = %s\n", a.ToString().c_str(), b.ToString().c_str(), (a + b).ToString().c_str());
-            std::printf("%s * %s = %s\n", a.ToString().c_str(), b.ToString().c_str(), (a * b).ToString().c_str());
-            std::printf("%s ^ %s = %s\n", a.ToString().c_str(), b.ToString().c_str(), a.Pow(b).ToString().c_str());
+            std::printf("ordinal format: 0..N | w | w+N | w*N | w^K | w^K+w^J+N\n");
+            std::printf("first ordinal: ");
+            std::string sa, sb;
+            std::getline(std::cin, sa);
+            std::printf("second ordinal: ");
+            std::getline(std::cin, sb);
+            try {
+                Ordinal a = ParseOrdinal(sa);
+                Ordinal b = ParseOrdinal(sb);
+                std::printf("%s + %s = %s\n", a.ToString().c_str(), b.ToString().c_str(), (a + b).ToString().c_str());
+                std::printf("%s * %s = %s\n", a.ToString().c_str(), b.ToString().c_str(), (a * b).ToString().c_str());
+                std::printf("%s ^ %s = %s\n", a.ToString().c_str(), b.ToString().c_str(), a.Pow(b).ToString().c_str());
+            } catch (const std::exception& e) {
+                std::printf("parse error: %s\n", e.what());
+            }
         }
     }
 }

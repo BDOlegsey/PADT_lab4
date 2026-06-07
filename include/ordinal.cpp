@@ -5,7 +5,7 @@
 
 namespace lab4 {
 
-Ordinal::Ordinal() {}  
+Ordinal::Ordinal() {} 
 
 Ordinal::Ordinal(uint64_t n) {
     if (n > 0) {
@@ -62,6 +62,7 @@ Ordinal Ordinal::FromTerms(std::vector<Term>&& terms) {
     return r;
 }
 
+
 bool Ordinal::IsZero() const { return terms_.empty(); }
 
 bool Ordinal::IsFinite() const {
@@ -91,7 +92,6 @@ bool Ordinal::operator==(const Ordinal& o) const {
 bool Ordinal::operator!=(const Ordinal& o) const { return !(*this == o); }
 
 bool Ordinal::operator<(const Ordinal& o) const {
-    // lexicographic on terms (highest exponent first)
     size_t mn = std::min(terms_.size(), o.terms_.size());
     for (size_t i = 0; i < mn; ++i) {
         const Ordinal& ea = *terms_[i].exponent;
@@ -199,7 +199,7 @@ Ordinal Ordinal::IntPow(uint64_t n) const {
 }
 
 Ordinal Ordinal::ShiftExpDown(const Ordinal& e) {
-    if (e.IsZero()) return Zero();
+    if (e.IsZero()) return Zero(); 
     if (e.IsFinite()) {
         uint64_t k = e.FiniteValue();
         if (k == 0) return Zero();
@@ -209,6 +209,7 @@ Ordinal Ordinal::ShiftExpDown(const Ordinal& e) {
     for (const auto& t : e.Terms()) {
         result.push_back({new Ordinal(*t.exponent), t.coef});
     }
+
     if (!result.empty() && result.back().exponent->IsZero()) {
         if (result.back().coef > 1) {
             result.back().coef -= 1;
@@ -218,6 +219,7 @@ Ordinal Ordinal::ShiftExpDown(const Ordinal& e) {
         }
         return Ordinal::FromTerms(std::move(result));
     }
+
     return e;
 }
 
@@ -231,6 +233,7 @@ Ordinal Ordinal::Pow(const Ordinal& exp) const {
         if (IsTransfinite()) {
             return IntPow(n);
         }
+        // finite^finite
         return IntPow(n);
     }
 
@@ -238,7 +241,7 @@ Ordinal Ordinal::Pow(const Ordinal& exp) const {
     std::vector<Term> alpha_terms;
     for (const auto& t : exp.Terms()) {
         if (t.exponent->IsZero()) {
-            r_val = t.coef;  // finite tail
+            r_val = t.coef;
         } else {
             Ordinal new_exp = ShiftExpDown(*t.exponent);
             Term nt; nt.exponent = new Ordinal(new_exp); nt.coef = t.coef;
@@ -255,12 +258,14 @@ Ordinal Ordinal::Pow(const Ordinal& exp) const {
 
     Ordinal base_pow;
     if (IsFinite()) {
-        base_pow = Ordinal::FromTerms([&]() {
+        {
             std::vector<Term> ts;
-            Term t; t.exponent = new Ordinal(alpha); t.coef = 1;
+            Term t;
+            t.exponent = new Ordinal(alpha);
+            t.coef = 1;
             ts.push_back(t);
-            return ts;
-        }());
+            base_pow = Ordinal::FromTerms(std::move(ts));
+        }
     } else {
         Ordinal a = *terms_[0].exponent;
         Ordinal a_times_alpha = a * Ordinal::Omega() * alpha;

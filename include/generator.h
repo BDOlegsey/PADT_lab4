@@ -23,7 +23,7 @@ public:
     Generator& operator=(const Generator&) = default;
 
     bool HasRule() const;
-    bool HasNext() const;
+    bool HasNext() const; 
 
     T GetNext(const std::vector<T>& materialized);
     Option<T> TryGetNext(const std::vector<T>& materialized);
@@ -38,7 +38,7 @@ public:
     struct PendingOp {
         enum Kind { kInsert, kRemove } kind;
         size_t index;
-        T value;
+        T value; 
     };
 
     const std::vector<PendingOp>& Pending() const { return pending_; }

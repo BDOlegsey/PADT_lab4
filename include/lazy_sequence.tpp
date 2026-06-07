@@ -7,7 +7,6 @@
 
 namespace lab4 {
 
-
 template <class T>
 LazySequence<T>::LazySequence() : state_(std::make_shared<State>()) {}
 
@@ -116,6 +115,7 @@ template <class T>
 LazySequence<T>* LazySequence<T>::Append(const T& item) {
     if (state_->length.IsFinite()) {
         size_t new_idx = state_->length.FiniteValue();
+
         state_->materialized.push_back(item);
         state_->generator.SetNextIndex(state_->materialized.size());
         state_->length = Cardinal::Finite(new_idx + 1);
@@ -184,14 +184,11 @@ LazySequence<T2>* LazySequence<T>::Map(std::function<T2(const T&)> f) {
         result->state_->generator.SetNextIndex(len);
         return result;
     }
-
-    // infinite
     struct MapRule {
         std::shared_ptr<State> src;
         std::function<T2(const T&)> fn;
         T2 operator()(const std::vector<T2>& mat) {
             size_t idx = mat.size();
-            
             while (src->materialized.size() <= idx) {
                 T val = src->generator.GetNext(src->materialized);
                 src->materialized.push_back(val);
@@ -199,7 +196,6 @@ LazySequence<T2>* LazySequence<T>::Map(std::function<T2(const T&)> f) {
             return fn(src->materialized[idx]);
         }
     };
-
     MapRule mr;
     mr.src = state_;
     mr.fn  = f;
@@ -219,7 +215,6 @@ LazySequence<T>* LazySequence<T>::Where(std::function<bool(const T&)> pred) {
                 filtered.push_back(state_->materialized[i]);
         return new LazySequence<T>(filtered.data(), (int)filtered.size());
     }
-
     const size_t kLimit = 1000;
     std::vector<T> filtered;
     for (size_t i = 0; i < kLimit; ++i) {
@@ -248,7 +243,6 @@ LazySequence<T>* LazySequence<T>::Zip(LazySequence<T>* other) {
         count = std::min(state_->length.FiniteValue(), other->state_->length.FiniteValue());
     else
         count = 20;
-        
     std::vector<T> pairs;
     for (size_t i = 0; i < count; ++i) {
         EnsureMaterialized(i);
