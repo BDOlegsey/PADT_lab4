@@ -7,7 +7,7 @@
 
 namespace lab4 {
 
-// ── ReadOnlyStream ────────────────────────────────────────────────────────────
+// ReadOnlyStream 
 
 template <class T>
 ReadOnlyStream<T>::ReadOnlyStream(const std::vector<T>& data)
@@ -65,7 +65,7 @@ size_t ReadOnlyStream<T>::Seek(size_t index) {
 template <class T>
 bool ReadOnlyStream<T>::IsCanGoBack() const { return true; }
 
-// ── WriteOnlyStream ───────────────────────────────────────────────────────────
+// WriteOnlyStream
 
 template <class T>
 WriteOnlyStream<T>::WriteOnlyStream() : sink_(nullptr), position_(0), open_(false) {}

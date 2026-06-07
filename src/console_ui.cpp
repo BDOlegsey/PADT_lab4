@@ -197,7 +197,6 @@ void ConsoleUi::DoConcat() {
 
 void ConsoleUi::StreamDemo() {
     std::printf("\n-- Stream demo --\n");
-    // write 1..10 into write stream, read back, compute sum
     WriteOnlyStream<int> ws;
     ws.Open();
     for (int i = 1; i <= 10; ++i) ws.Write(i);

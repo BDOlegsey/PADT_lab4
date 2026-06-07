@@ -7,7 +7,6 @@
 
 namespace lab4 {
 
-// ── constructors ─────────────────────────────────────────────────────────────
 
 template <class T>
 LazySequence<T>::LazySequence() : state_(std::make_shared<State>()) {}
@@ -43,7 +42,6 @@ LazySequence<T>& LazySequence<T>::operator=(const LazySequence<T>& other) {
     return *this;
 }
 
-// ── private helpers ───────────────────────────────────────────────────────────
 
 template <class T>
 void LazySequence<T>::CheckIndex(int index) const {
@@ -68,7 +66,6 @@ void LazySequence<T>::EnsureMaterialized(size_t idx) {
     }
 }
 
-// ── decomposition ─────────────────────────────────────────────────────────────
 
 template <class T>
 T LazySequence<T>::GetFirst() {
@@ -114,21 +111,15 @@ size_t LazySequence<T>::GetMaterializedCount() const {
     return state_->materialized.size();
 }
 
-// ── operations ────────────────────────────────────────────────────────────────
 
 template <class T>
 LazySequence<T>* LazySequence<T>::Append(const T& item) {
     if (state_->length.IsFinite()) {
         size_t new_idx = state_->length.FiniteValue();
-        // if already materialized up to here, just push
         state_->materialized.push_back(item);
         state_->generator.SetNextIndex(state_->materialized.size());
         state_->length = Cardinal::Finite(new_idx + 1);
     } else {
-        // infinite: schedule insert at very large index (logical end - not reachable by rule)
-        // We instead use a second tail approach: not practical. 
-        // For infinite sequences, Append schedules at the "current pending end":
-        // append to tail sequence
         if (!state_->tail) {
             state_->tail = std::make_shared<LazySequence<T>>();
         }
@@ -139,7 +130,6 @@ LazySequence<T>* LazySequence<T>::Append(const T& item) {
 
 template <class T>
 LazySequence<T>* LazySequence<T>::Prepend(const T& item) {
-    // insert at position 0
     return InsertAt(item, 0);
 }
 
@@ -152,20 +142,17 @@ LazySequence<T>* LazySequence<T>::InsertAt(const T& item, int index) {
         size_t len = state_->length.FiniteValue();
         if (idx > len)
             throw IndexOutOfRange("InsertAt: index out of range");
-        // materialize up to idx
         EnsureMaterialized(idx > 0 ? idx - 1 : 0);
         if (idx <= state_->materialized.size()) {
             state_->materialized.insert(state_->materialized.begin() + idx, item);
             state_->generator.SetNextIndex(state_->materialized.size());
             state_->length = Cardinal::Finite(len + 1);
         } else {
-            // schedule for generator
             state_->generator.ShiftPendingIndices(idx, +1);
             state_->generator.ScheduleInsert(item, idx);
             state_->length = Cardinal::Finite(len + 1);
         }
     } else {
-        // infinite: schedule as pending insert
         state_->generator.ShiftPendingIndices(idx, +1);
         state_->generator.ScheduleInsert(item, idx);
     }
@@ -174,24 +161,18 @@ LazySequence<T>* LazySequence<T>::InsertAt(const T& item, int index) {
 
 template <class T>
 LazySequence<T>* LazySequence<T>::Concat(LazySequence<T>* other) {
-    // store other as tail
     state_->tail = std::make_shared<LazySequence<T>>(*other);
-    // if this is finite, combined length = this.length + other.length
     if (state_->length.IsFinite() && other->state_->length.IsFinite()) {
         state_->length = state_->length + other->state_->length.FiniteValue();
     } else {
-        // if either is infinite, combined length is omega
         state_->length = Cardinal::Omega();
     }
     return this;
 }
 
-// ── map / where / reduce ─────────────────────────────────────────────────────
-
 template <class T>
 template <class T2>
 LazySequence<T2>* LazySequence<T>::Map(std::function<T2(const T&)> f) {
-    // materialize what we know, apply f, create finite or rule-based result
     if (state_->length.IsFinite()) {
         size_t len = state_->length.FiniteValue();
         EnsureMaterialized(len > 0 ? len - 1 : 0);
@@ -203,20 +184,27 @@ LazySequence<T2>* LazySequence<T>::Map(std::function<T2(const T&)> f) {
         result->state_->generator.SetNextIndex(len);
         return result;
     }
-    // infinite: capture shared_ptr to this state, build rule
-    auto src_state = state_;
-    auto* result = new LazySequence<T2>(
-        [src_state, f](const std::vector<T2>& mat) -> T2 {
+
+    // infinite
+    struct MapRule {
+        std::shared_ptr<State> src;
+        std::function<T2(const T&)> fn;
+        T2 operator()(const std::vector<T2>& mat) {
             size_t idx = mat.size();
-            // ensure source materialized at idx
-            while (src_state->materialized.size() <= idx) {
-                T val = src_state->generator.GetNext(src_state->materialized);
-                src_state->materialized.push_back(val);
+            
+            while (src->materialized.size() <= idx) {
+                T val = src->generator.GetNext(src->materialized);
+                src->materialized.push_back(val);
             }
-            return f(src_state->materialized[idx]);
-        },
-        nullptr, 0
-    );
+            return fn(src->materialized[idx]);
+        }
+    };
+
+    MapRule mr;
+    mr.src = state_;
+    mr.fn  = f;
+    auto* result = new LazySequence<T2>(
+        typename LazySequence<T2>::Rule(mr), nullptr, 0);
     return result;
 }
 
@@ -231,8 +219,7 @@ LazySequence<T>* LazySequence<T>::Where(std::function<bool(const T&)> pred) {
                 filtered.push_back(state_->materialized[i]);
         return new LazySequence<T>(filtered.data(), (int)filtered.size());
     }
-    // infinite: collect on demand -- return finite approximation (not supported for pure infinite)
-    // Materialize first 1000 and filter (practical limit)
+
     const size_t kLimit = 1000;
     std::vector<T> filtered;
     for (size_t i = 0; i < kLimit; ++i) {
@@ -256,13 +243,12 @@ T2 LazySequence<T>::Reduce(std::function<T2(const T2&, const T&)> f, T2 init, si
 
 template <class T>
 LazySequence<T>* LazySequence<T>::Zip(LazySequence<T>* other) {
-    // pair-wise: take min(len, other->len) elements
     size_t count;
     if (state_->length.IsFinite() && other->state_->length.IsFinite())
         count = std::min(state_->length.FiniteValue(), other->state_->length.FiniteValue());
     else
-        count = 20;  // reasonable default for infinite
-    // build pairs as alternating values (interleaved)
+        count = 20;
+        
     std::vector<T> pairs;
     for (size_t i = 0; i < count; ++i) {
         EnsureMaterialized(i);

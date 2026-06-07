@@ -55,7 +55,6 @@ void Generator<T>::ShiftPendingIndices(size_t from_idx, int delta) {
 
 template <class T>
 T Generator<T>::GetNext(const std::vector<T>& materialized) {
-    // check pending inserts at current position
     for (size_t i = 0; i < pending_.size(); ++i) {
         auto& op = pending_[i];
         if (op.kind == PendingOp::kInsert && op.index == next_index_) {
@@ -65,20 +64,18 @@ T Generator<T>::GetNext(const std::vector<T>& materialized) {
             return val;
         }
     }
-    // check pending remove at current position
     for (size_t i = 0; i < pending_.size(); ++i) {
         auto& op = pending_[i];
         if (op.kind == PendingOp::kRemove && op.index == next_index_) {
             pending_.erase(pending_.begin() + i);
-            // skip this rule element and recurse (consume from rule, don't return it)
             if (!has_rule_) throw EndOfStream("generator: remove past end of sequence");
-            rule_(materialized);  // consume but discard
+            rule_(materialized);
             ++next_index_;
-            // now return actual next
+            
             return GetNext(materialized);
         }
     }
-    // generate from rule
+    
     if (!has_rule_) throw EndOfStream("generator: no more elements");
     T val = rule_(materialized);
     ++next_index_;
