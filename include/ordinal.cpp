@@ -3,43 +3,60 @@
 #include <algorithm>
 #include <sstream>
 
+namespace {
+
+void AppendTerm(lab2::DynamicArray<lab4::Ordinal::Term>& array,
+                const lab4::Ordinal::Term& term) {
+    int index = array.GetSize();
+    array.Resize(index + 1);
+    array.Set(index, term);
+}
+
+}  // namespace
+
 namespace lab4 {
 
-Ordinal::Ordinal() {} 
+Ordinal::Ordinal() {}
 
 Ordinal::Ordinal(uint64_t n) {
     if (n > 0) {
         Term t;
-        t.exponent = new Ordinal(); 
+        t.exponent = new Ordinal();
         t.coef = n;
-        terms_.push_back(t);
+        AppendTerm(terms_, t);
     }
 }
 
 Ordinal::Ordinal(const Ordinal& other) {
-    for (const auto& t : other.terms_) {
+    int count = other.terms_.GetSize();
+    for (int i = 0; i < count; ++i) {
+        const Term& t = other.terms_[i];
         Term nt;
         nt.exponent = new Ordinal(*t.exponent);
         nt.coef = t.coef;
-        terms_.push_back(nt);
+        AppendTerm(terms_, nt);
     }
 }
 
 Ordinal& Ordinal::operator=(const Ordinal& other) {
     if (this == &other) return *this;
-    for (auto& t : terms_) delete t.exponent;
-    terms_.clear();
-    for (const auto& t : other.terms_) {
+    int current_size = terms_.GetSize();
+    for (int i = 0; i < current_size; ++i) delete terms_[i].exponent;
+    terms_.Resize(0);
+    int count = other.terms_.GetSize();
+    for (int i = 0; i < count; ++i) {
+        const Term& t = other.terms_[i];
         Term nt;
         nt.exponent = new Ordinal(*t.exponent);
         nt.coef = t.coef;
-        terms_.push_back(nt);
+        AppendTerm(terms_, nt);
     }
     return *this;
 }
 
 Ordinal::~Ordinal() {
-    for (auto& t : terms_) delete t.exponent;
+    int current_size = terms_.GetSize();
+    for (int i = 0; i < current_size; ++i) delete terms_[i].exponent;
 }
 
 
@@ -52,37 +69,38 @@ Ordinal Ordinal::Omega() {
     Term t;
     t.exponent = new Ordinal(Finite(1));
     t.coef = 1;
-    r.terms_.push_back(t);
+    AppendTerm(r.terms_, t);
     return r;
 }
 
-Ordinal Ordinal::FromTerms(std::vector<Term>&& terms) {
+Ordinal Ordinal::FromTerms(const lab2::DynamicArray<Term>& terms) {
     Ordinal r;
-    r.terms_ = std::move(terms);
+    r.terms_ = terms;
     return r;
 }
 
 
-bool Ordinal::IsZero() const { return terms_.empty(); }
+bool Ordinal::IsZero() const { return terms_.GetSize() == 0; }
 
 bool Ordinal::IsFinite() const {
-    if (terms_.empty()) return true;
-    if (terms_.size() > 1) return false;
+    if (terms_.GetSize() == 0) return true;
+    if (terms_.GetSize() > 1) return false;
     return terms_[0].exponent->IsZero();
 }
 
 bool Ordinal::IsTransfinite() const { return !IsFinite(); }
 
 uint64_t Ordinal::FiniteValue() const {
-    if (terms_.empty()) return 0;
+    if (terms_.GetSize() == 0) return 0;
     if (!IsFinite()) throw InvalidArgument("Ordinal: not finite");
     return terms_[0].coef;
 }
 
 
 bool Ordinal::operator==(const Ordinal& o) const {
-    if (terms_.size() != o.terms_.size()) return false;
-    for (size_t i = 0; i < terms_.size(); ++i) {
+    if (terms_.GetSize() != o.terms_.GetSize()) return false;
+    int count = terms_.GetSize();
+    for (int i = 0; i < count; ++i) {
         if (terms_[i].coef != o.terms_[i].coef) return false;
         if (!(*terms_[i].exponent == *o.terms_[i].exponent)) return false;
     }
@@ -92,14 +110,16 @@ bool Ordinal::operator==(const Ordinal& o) const {
 bool Ordinal::operator!=(const Ordinal& o) const { return !(*this == o); }
 
 bool Ordinal::operator<(const Ordinal& o) const {
-    size_t mn = std::min(terms_.size(), o.terms_.size());
-    for (size_t i = 0; i < mn; ++i) {
+    int lhs_size = terms_.GetSize();
+    int rhs_size = o.terms_.GetSize();
+    int mn = std::min(lhs_size, rhs_size);
+    for (int i = 0; i < mn; ++i) {
         const Ordinal& ea = *terms_[i].exponent;
         const Ordinal& eb = *o.terms_[i].exponent;
         if (ea != eb) return ea < eb;
         if (terms_[i].coef != o.terms_[i].coef) return terms_[i].coef < o.terms_[i].coef;
     }
-    return terms_.size() < o.terms_.size();
+    return lhs_size < rhs_size;
 }
 
 bool Ordinal::operator<=(const Ordinal& o) const { return !(o < *this); }
@@ -111,37 +131,41 @@ Ordinal Ordinal::operator+(const Ordinal& other) const {
     if (IsZero())       return other;
 
     const Ordinal& head_other_exp = *other.terms_[0].exponent;
-    std::vector<Term> result;
+    lab2::DynamicArray<Term> result;
 
-    for (const auto& t : terms_) {
+    int lhs_count = terms_.GetSize();
+    for (int i = 0; i < lhs_count; ++i) {
+        const Term& t = terms_[i];
         if (*t.exponent > head_other_exp) {
             Term nt; nt.exponent = new Ordinal(*t.exponent); nt.coef = t.coef;
-            result.push_back(nt);
+            AppendTerm(result, nt);
         } else {
             break;
         }
     }
 
     bool merged = false;
-    for (const auto& t : terms_) {
+    for (int i = 0; i < lhs_count; ++i) {
+        const Term& t = terms_[i];
         if (*t.exponent == head_other_exp) {
             Term nt; nt.exponent = new Ordinal(head_other_exp); nt.coef = t.coef + other.terms_[0].coef;
-            result.push_back(nt);
+            AppendTerm(result, nt);
             merged = true;
             break;
         }
     }
     if (!merged) {
         Term nt; nt.exponent = new Ordinal(head_other_exp); nt.coef = other.terms_[0].coef;
-        result.push_back(nt);
+        AppendTerm(result, nt);
     }
 
-    for (size_t i = 1; i < other.terms_.size(); ++i) {
+    int other_count = other.terms_.GetSize();
+    for (int i = 1; i < other_count; ++i) {
         Term nt; nt.exponent = new Ordinal(*other.terms_[i].exponent); nt.coef = other.terms_[i].coef;
-        result.push_back(nt);
+        AppendTerm(result, nt);
     }
 
-    return FromTerms(std::move(result));
+    return FromTerms(result);
 }
 
 
@@ -151,34 +175,37 @@ Ordinal Ordinal::operator*(const Ordinal& other) const {
         // alpha * n: multiply leading coef by n, keep rest
         uint64_t n = other.FiniteValue();
         if (n == 0) return Zero();
-        std::vector<Term> result;
-        for (size_t i = 0; i < terms_.size(); ++i) {
+        lab2::DynamicArray<Term> result;
+        int lhs_count = terms_.GetSize();
+        for (int i = 0; i < lhs_count; ++i) {
             Term nt;
             nt.exponent = new Ordinal(*terms_[i].exponent);
             nt.coef = (i == 0) ? terms_[0].coef * n : terms_[i].coef;
-            result.push_back(nt);
+            AppendTerm(result, nt);
         }
-        return FromTerms(std::move(result));
+        return FromTerms(result);
     }
 
     Ordinal result = Zero();
-    for (const auto& ot : other.terms_) {
+    int other_count = other.terms_.GetSize();
+    for (int i = 0; i < other_count; ++i) {
+        const Term& ot = other.terms_[i];
         const Ordinal& ot_exp = *ot.exponent;
         uint64_t ot_c = ot.coef;
         Ordinal piece;
         if (ot_exp.IsZero()) {
             piece = *this * Finite(ot_c);
         } else {
-            std::vector<Term> terms;
+            lab2::DynamicArray<Term> terms;
             if (IsFinite()) {
                 Term t; t.exponent = new Ordinal(ot_exp); t.coef = ot_c;
-                terms.push_back(t);
+                AppendTerm(terms, t);
             } else {
                 Ordinal new_exp = *terms_[0].exponent + ot_exp;
                 Term t; t.exponent = new Ordinal(new_exp); t.coef = ot_c;
-                terms.push_back(t);
+                AppendTerm(terms, t);
             }
-            piece = FromTerms(std::move(terms));
+            piece = FromTerms(terms);
         }
         result = result + piece;
     }
@@ -199,25 +226,31 @@ Ordinal Ordinal::IntPow(uint64_t n) const {
 }
 
 Ordinal Ordinal::ShiftExpDown(const Ordinal& e) {
-    if (e.IsZero()) return Zero(); 
+    if (e.IsZero()) return Zero();
     if (e.IsFinite()) {
         uint64_t k = e.FiniteValue();
         if (k == 0) return Zero();
         return Finite(k - 1);
     }
-    std::vector<Ordinal::Term> result;
-    for (const auto& t : e.Terms()) {
-        result.push_back({new Ordinal(*t.exponent), t.coef});
+    lab2::DynamicArray<Ordinal::Term> result;
+    int term_count = e.Terms().GetSize();
+    for (int i = 0; i < term_count; ++i) {
+        const Term& t = e.Terms()[i];
+        Term nt;
+        nt.exponent = new Ordinal(*t.exponent);
+        nt.coef = t.coef;
+        AppendTerm(result, nt);
     }
 
-    if (!result.empty() && result.back().exponent->IsZero()) {
-        if (result.back().coef > 1) {
-            result.back().coef -= 1;
+    if (result.GetSize() > 0 && result[result.GetSize() - 1].exponent->IsZero()) {
+        Term& back = result[result.GetSize() - 1];
+        if (back.coef > 1) {
+            back.coef -= 1;
         } else {
-            delete result.back().exponent;
-            result.pop_back();
+            delete back.exponent;
+            result.Resize(result.GetSize() - 1);
         }
-        return Ordinal::FromTerms(std::move(result));
+        return Ordinal::FromTerms(result);
     }
 
     return e;
@@ -238,17 +271,19 @@ Ordinal Ordinal::Pow(const Ordinal& exp) const {
     }
 
     uint64_t r_val = 0;
-    std::vector<Term> alpha_terms;
-    for (const auto& t : exp.Terms()) {
+    lab2::DynamicArray<Term> alpha_terms;
+    int exp_count = exp.Terms().GetSize();
+    for (int i = 0; i < exp_count; ++i) {
+        const Term& t = exp.Terms()[i];
         if (t.exponent->IsZero()) {
             r_val = t.coef;
         } else {
             Ordinal new_exp = ShiftExpDown(*t.exponent);
             Term nt; nt.exponent = new Ordinal(new_exp); nt.coef = t.coef;
-            alpha_terms.push_back(nt);
+            AppendTerm(alpha_terms, nt);
         }
     }
-    Ordinal alpha = FromTerms(std::move(alpha_terms));
+    Ordinal alpha = FromTerms(alpha_terms);
 
     Ordinal fin_pow = IntPow(r_val);
 
@@ -259,20 +294,20 @@ Ordinal Ordinal::Pow(const Ordinal& exp) const {
     Ordinal base_pow;
     if (IsFinite()) {
         {
-            std::vector<Term> ts;
+            lab2::DynamicArray<Term> ts;
             Term t;
             t.exponent = new Ordinal(alpha);
             t.coef = 1;
-            ts.push_back(t);
-            base_pow = Ordinal::FromTerms(std::move(ts));
+            AppendTerm(ts, t);
+            base_pow = Ordinal::FromTerms(ts);
         }
     } else {
         Ordinal a = *terms_[0].exponent;
         Ordinal a_times_alpha = a * Ordinal::Omega() * alpha;
-        std::vector<Term> ts;
+        lab2::DynamicArray<Term> ts;
         Term t; t.exponent = new Ordinal(a_times_alpha); t.coef = 1;
-        ts.push_back(t);
-        base_pow = FromTerms(std::move(ts));
+        AppendTerm(ts, t);
+        base_pow = FromTerms(ts);
     }
 
     return base_pow * fin_pow;
@@ -281,7 +316,8 @@ Ordinal Ordinal::Pow(const Ordinal& exp) const {
 std::string Ordinal::ToString() const {
     if (IsZero()) return "0";
     std::string s;
-    for (size_t i = 0; i < terms_.size(); ++i) {
+    int count = terms_.GetSize();
+    for (int i = 0; i < count; ++i) {
         if (i > 0) s += " + ";
         const Ordinal& e = *terms_[i].exponent;
         uint64_t c = terms_[i].coef;
@@ -291,7 +327,7 @@ std::string Ordinal::ToString() const {
             s += (c == 1) ? "w" : ("w*" + std::to_string(c));
         } else {
             std::string es = e.ToString();
-            bool need_paren = (e.Terms().size() > 1);
+            bool need_paren = (e.Terms().GetSize() > 1);
             if (need_paren) es = "(" + es + ")";
             s += "w^" + es;
             if (c > 1) s += "*" + std::to_string(c);

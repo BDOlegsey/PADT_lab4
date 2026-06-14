@@ -1,5 +1,7 @@
 #include "console_ui.h"
 
+#include "../lab2/include/dynamic_array.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -9,13 +11,13 @@
 
 namespace lab4 {
 
-static int FibRule(const std::vector<int>& m) {
-    size_t n = m.size();
-    return m[n-1] + m[n-2];
+static int FibRule(const lab2::DynamicArray<int>& materialized) {
+    int size = materialized.GetSize();
+    return materialized.Get(size - 1) + materialized.Get(size - 2);
 }
 
-static int NatRule(const std::vector<int>& m) {
-    return (int)m.size();
+static int NatRule(const lab2::DynamicArray<int>& materialized) {
+    return materialized.GetSize();
 }
 
 static int ParseInt(const std::string& s) {

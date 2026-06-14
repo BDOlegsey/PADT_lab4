@@ -4,31 +4,33 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
-#include <vector>
+
+#include "../lab2/include/dynamic_array.h"
 #include "cardinal.h"
 #include "errors.h"
 #include "generator.h"
-#include "option.h"
+#include "ordinal.h"
 
 namespace lab4 {
 
 template <class T>
 class LazySequence {
 public:
-    using Rule = std::function<T(const std::vector<T>&)>;
+    using Rule = std::function<T(const lab2::DynamicArray<T>&)>;
+    using GeneratorPtr = typename Generator<T>::Ptr;
 
     LazySequence();
     LazySequence(const T* items, int count);
-
     LazySequence(Rule rule, const T* seed, int seed_count);
-    
+
     LazySequence(const LazySequence<T>& other);
     LazySequence<T>& operator=(const LazySequence<T>& other);
     ~LazySequence() = default;
 
     T GetFirst();
-    T GetLast(); 
+    T GetLast();
     T Get(int index);
+    T Get(const Ordinal& index);
     LazySequence<T>* GetSubsequence(int start, int end);
 
     Cardinal GetLength() const;
@@ -37,7 +39,6 @@ public:
     LazySequence<T>* Append(const T& item);
     LazySequence<T>* Prepend(const T& item);
     LazySequence<T>* InsertAt(const T& item, int index);
-
     LazySequence<T>* Concat(LazySequence<T>* other);
 
     template <class T2>
@@ -51,25 +52,17 @@ public:
     LazySequence<T>* Zip(LazySequence<T>* other);
 
 private:
-    struct State {
-        std::vector<T> materialized;
-        Generator<T> generator;
-        Cardinal length;
-        
-        std::shared_ptr<LazySequence<T>> tail;
+    GeneratorPtr gen_;
+    Cardinal length_;
 
-        State() : generator(), length(Cardinal::Finite(0)) {}
-    };
-
-    std::shared_ptr<State> state_;
-
-    void EnsureMaterialized(size_t idx);
-    void MaterializeNext();
+    LazySequence(GeneratorPtr gen, Cardinal length);
 
     void CheckIndex(int index) const;
+    bool IsInfinite() const;
 };
 
 }  // namespace lab4
 
 #include "lazy_sequence.tpp"
+
 #endif

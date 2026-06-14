@@ -3,8 +3,9 @@
 
 #include <cstddef>
 #include <functional>
-#include <memory>
-#include <vector>
+#include <string>
+
+#include "../lab2/include/dynamic_array.h"
 #include "errors.h"
 #include "option.h"
 
@@ -15,7 +16,7 @@ template <class T> class LazySequence;
 template <class T>
 class ReadOnlyStream {
 public:
-    explicit ReadOnlyStream(const std::vector<T>& data);
+    explicit ReadOnlyStream(const lab2::DynamicArray<T>& data);
     ReadOnlyStream(const T* data, size_t count);
     ReadOnlyStream(const std::string& str, std::function<T(const std::string&)> deser);
     ReadOnlyStream(const std::string& filename, bool is_file,
@@ -34,7 +35,7 @@ public:
     bool IsCanGoBack() const;
 
 private:
-    std::vector<T> data_;
+    lab2::DynamicArray<T> data_;
     size_t cursor_;
     bool open_;
 };
@@ -43,7 +44,7 @@ template <class T>
 class WriteOnlyStream {
 public:
     WriteOnlyStream();
-    explicit WriteOnlyStream(std::vector<T>* sink);
+    explicit WriteOnlyStream(lab2::DynamicArray<T>* sink);
 
     void Open();
     void Close();
@@ -51,12 +52,11 @@ public:
     size_t Write(const T& item);
     size_t GetPosition() const;
 
-    // retrieve all written data
-    const std::vector<T>& Data() const;
+    const lab2::DynamicArray<T>& Data() const;
 
 private:
-    std::vector<T> internal_;
-    std::vector<T>* sink_;
+    lab2::DynamicArray<T> internal_;
+    lab2::DynamicArray<T>* sink_;
     size_t position_;
     bool open_;
 };
@@ -64,4 +64,5 @@ private:
 }  // namespace lab4
 
 #include "stream.tpp"
+
 #endif

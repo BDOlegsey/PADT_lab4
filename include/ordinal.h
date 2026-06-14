@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include <string>
-#include <vector>
+#include "../lab2/include/dynamic_array.h"
 
 namespace lab4 {
 
@@ -40,12 +40,12 @@ public:
 
     std::string ToString() const;
 
-    const std::vector<Term>& Terms() const { return terms_; }
+    const lab2::DynamicArray<Term>& Terms() const { return terms_; }
 
 private:
-    std::vector<Term> terms_;
+    lab2::DynamicArray<Term> terms_;
 
-    static Ordinal FromTerms(std::vector<Term>&& terms);
+    static Ordinal FromTerms(const lab2::DynamicArray<Term>& terms);
     Ordinal IntPow(uint64_t n) const; 
     
     static Ordinal ShiftExpDown(const Ordinal& e);

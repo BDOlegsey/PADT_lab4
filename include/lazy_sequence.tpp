@@ -2,128 +2,154 @@
 #define LAB4_LAZY_SEQUENCE_TPP
 
 #include "lazy_sequence.h"
-#include <stdexcept>
+
+#include <algorithm>
 #include <string>
 
 namespace lab4 {
 
+namespace {
+
 template <class T>
-LazySequence<T>::LazySequence() : state_(std::make_shared<State>()) {}
+void LazySequenceArrayPushBack(lab2::DynamicArray<T>& array, const T& value) {
+    int size = array.GetSize();
+    array.Resize(size + 1);
+    array.Set(size, value);
+}
+
+template <class T>
+LazySequence<T>* FromDynamicArray(const lab2::DynamicArray<T>& array) {
+    int count = array.GetSize();
+    if (count == 0) {
+        return new LazySequence<T>();
+    }
+
+    T* buffer = new T[count];
+    for (int i = 0; i < count; ++i) {
+        buffer[i] = array.Get(i);
+    }
+
+    LazySequence<T>* sequence = new LazySequence<T>(buffer, count);
+    delete[] buffer;
+    return sequence;
+}
+
+}  // namespace
+
+template <class T>
+LazySequence<T>::LazySequence()
+    : gen_(Generator<T>::FromArray(nullptr, 0)),
+      length_(Cardinal::Finite(0)) {}
 
 template <class T>
 LazySequence<T>::LazySequence(const T* items, int count)
-    : state_(std::make_shared<State>()) {
-    if (count < 0) throw InvalidArgument("LazySequence: count must be non-negative");
-    for (int i = 0; i < count; ++i)
-        state_->materialized.push_back(items[i]);
-    state_->length = Cardinal::Finite((size_t)count);
-    state_->generator.SetNextIndex((size_t)count);
-}
+    : gen_(Generator<T>::FromArray(items, count)),
+      length_(Cardinal::Finite(static_cast<size_t>(count))) {}
 
 template <class T>
 LazySequence<T>::LazySequence(Rule rule, const T* seed, int seed_count)
-    : state_(std::make_shared<State>()) {
-    state_->generator = Generator<T>(rule);
-    if (seed_count < 0) throw InvalidArgument("LazySequence: seed_count must be non-negative");
-    for (int i = 0; i < seed_count; ++i)
-        state_->materialized.push_back(seed[i]);
-    state_->generator.SetNextIndex((size_t)seed_count);
-    state_->length = Cardinal::Omega();
-}
+    : gen_(Generator<T>::FromRule(rule, seed, seed_count)),
+      length_(Cardinal::Omega()) {}
+
+template <class T>
+LazySequence<T>::LazySequence(GeneratorPtr gen, Cardinal length)
+    : gen_(gen),
+      length_(length) {}
 
 template <class T>
 LazySequence<T>::LazySequence(const LazySequence<T>& other)
-    : state_(other.state_) {}
+    : gen_(other.gen_),
+      length_(other.length_) {}
 
 template <class T>
 LazySequence<T>& LazySequence<T>::operator=(const LazySequence<T>& other) {
-    state_ = other.state_;
+    gen_ = other.gen_;
+    length_ = other.length_;
     return *this;
 }
 
+template <class T>
+bool LazySequence<T>::IsInfinite() const {
+    return length_.IsOmega();
+}
 
 template <class T>
 void LazySequence<T>::CheckIndex(int index) const {
-    if (index < 0)
+    if (index < 0) {
         throw IndexOutOfRange("index " + std::to_string(index) + " is negative");
-    if (state_->length.IsFinite() && (size_t)index >= state_->length.FiniteValue())
+    }
+    if (length_.IsFinite() &&
+        static_cast<size_t>(index) >= length_.FiniteValue()) {
         throw IndexOutOfRange("index " + std::to_string(index) + " out of range");
-}
-
-template <class T>
-void LazySequence<T>::MaterializeNext() {
-    if (!state_->generator.HasRule())
-        throw EndOfStream("LazySequence: no more elements to materialize");
-    T val = state_->generator.GetNext(state_->materialized);
-    state_->materialized.push_back(val);
-}
-
-template <class T>
-void LazySequence<T>::EnsureMaterialized(size_t idx) {
-    while (state_->materialized.size() <= idx) {
-        MaterializeNext();
     }
 }
 
-
 template <class T>
 T LazySequence<T>::GetFirst() {
-    if (state_->length.IsFinite() && state_->length.FiniteValue() == 0)
+    if (length_.IsFinite() && length_.FiniteValue() == 0) {
         throw IndexOutOfRange("GetFirst: sequence is empty");
-    EnsureMaterialized(0);
-    return state_->materialized[0];
+    }
+    return gen_->GetFinite(0);
 }
 
 template <class T>
 T LazySequence<T>::GetLast() {
-    if (!state_->length.IsFinite())
+    if (!length_.IsFinite()) {
         throw InvalidArgument("GetLast: sequence is infinite");
-    size_t n = state_->length.FiniteValue();
-    if (n == 0) throw IndexOutOfRange("GetLast: sequence is empty");
-    EnsureMaterialized(n - 1);
-    return state_->materialized[n - 1];
+    }
+    size_t last = length_.FiniteValue();
+    if (last == 0) {
+        throw IndexOutOfRange("GetLast: sequence is empty");
+    }
+    return gen_->GetFinite(static_cast<int>(last - 1));
 }
 
 template <class T>
 T LazySequence<T>::Get(int index) {
     CheckIndex(index);
-    EnsureMaterialized((size_t)index);
-    return state_->materialized[(size_t)index];
+    return gen_->GetFinite(index);
+}
+
+template <class T>
+T LazySequence<T>::Get(const Ordinal& index) {
+    if (index.IsFinite() && length_.IsFinite() &&
+        index.FiniteValue() >= length_.FiniteValue()) {
+        throw IndexOutOfRange("ordinal index out of finite range");
+    }
+    return gen_->GetAt(index);
 }
 
 template <class T>
 LazySequence<T>* LazySequence<T>::GetSubsequence(int start, int end) {
     CheckIndex(start);
     CheckIndex(end);
-    if (start > end)
+    if (start > end) {
         throw InvalidArgument("GetSubsequence: start > end");
-    EnsureMaterialized((size_t)end);
-    const T* ptr = state_->materialized.data() + start;
-    return new LazySequence<T>(ptr, end - start + 1);
+    }
+
+    int count = end - start + 1;
+    lab2::DynamicArray<T> items(count);
+    for (int i = 0; i < count; ++i) {
+        items.Set(i, gen_->GetFinite(start + i));
+    }
+    return FromDynamicArray(items);
 }
 
 template <class T>
-Cardinal LazySequence<T>::GetLength() const { return state_->length; }
+Cardinal LazySequence<T>::GetLength() const {
+    return length_;
+}
 
 template <class T>
 size_t LazySequence<T>::GetMaterializedCount() const {
-    return state_->materialized.size();
+    return static_cast<size_t>(gen_->MaterializedCount());
 }
-
 
 template <class T>
 LazySequence<T>* LazySequence<T>::Append(const T& item) {
-    if (state_->length.IsFinite()) {
-        size_t new_idx = state_->length.FiniteValue();
-
-        state_->materialized.push_back(item);
-        state_->generator.SetNextIndex(state_->materialized.size());
-        state_->length = Cardinal::Finite(new_idx + 1);
-    } else {
-        if (!state_->tail) {
-            state_->tail = std::make_shared<LazySequence<T>>();
-        }
-        state_->tail->Append(item);
+    gen_->Append(item, IsInfinite());
+    if (length_.IsFinite()) {
+        length_ = Cardinal::Finite(length_.FiniteValue() + 1);
     }
     return this;
 }
@@ -135,37 +161,32 @@ LazySequence<T>* LazySequence<T>::Prepend(const T& item) {
 
 template <class T>
 LazySequence<T>* LazySequence<T>::InsertAt(const T& item, int index) {
-    if (index < 0)
-        throw InvalidArgument("InsertAt: negative index");
-    size_t idx = (size_t)index;
-    if (state_->length.IsFinite()) {
-        size_t len = state_->length.FiniteValue();
-        if (idx > len)
-            throw IndexOutOfRange("InsertAt: index out of range");
-        EnsureMaterialized(idx > 0 ? idx - 1 : 0);
-        if (idx <= state_->materialized.size()) {
-            state_->materialized.insert(state_->materialized.begin() + idx, item);
-            state_->generator.SetNextIndex(state_->materialized.size());
-            state_->length = Cardinal::Finite(len + 1);
-        } else {
-            state_->generator.ShiftPendingIndices(idx, +1);
-            state_->generator.ScheduleInsert(item, idx);
-            state_->length = Cardinal::Finite(len + 1);
-        }
-    } else {
-        state_->generator.ShiftPendingIndices(idx, +1);
-        state_->generator.ScheduleInsert(item, idx);
+    gen_->InsertAt(item, index, IsInfinite());
+    if (length_.IsFinite()) {
+        length_ = Cardinal::Finite(length_.FiniteValue() + 1);
     }
     return this;
 }
 
 template <class T>
 LazySequence<T>* LazySequence<T>::Concat(LazySequence<T>* other) {
-    state_->tail = std::make_shared<LazySequence<T>>(*other);
-    if (state_->length.IsFinite() && other->state_->length.IsFinite()) {
-        state_->length = state_->length + other->state_->length.FiniteValue();
+    if (!other) {
+        throw InvalidArgument("Concat: other sequence is null");
+    }
+
+    bool self_inf = IsInfinite();
+    bool other_inf = other->IsInfinite();
+
+    if (self_inf && other_inf) {
+        Generator<T>::LinkSuffix(gen_, other->gen_);
     } else {
-        state_->length = Cardinal::Omega();
+        gen_->Concat(other->gen_, self_inf, other_inf);
+    }
+
+    if (length_.IsFinite() && other->length_.IsFinite()) {
+        length_ = length_ + other->length_.FiniteValue();
+    } else {
+        length_ = Cardinal::Omega();
     }
     return this;
 }
@@ -173,56 +194,60 @@ LazySequence<T>* LazySequence<T>::Concat(LazySequence<T>* other) {
 template <class T>
 template <class T2>
 LazySequence<T2>* LazySequence<T>::Map(std::function<T2(const T&)> f) {
-    if (state_->length.IsFinite()) {
-        size_t len = state_->length.FiniteValue();
-        EnsureMaterialized(len > 0 ? len - 1 : 0);
-        auto* result = new LazySequence<T2>();
-        result->state_->materialized.resize(len);
-        for (size_t i = 0; i < len; ++i)
-            result->state_->materialized[i] = f(state_->materialized[i]);
-        result->state_->length = state_->length;
-        result->state_->generator.SetNextIndex(len);
-        return result;
-    }
-    struct MapRule {
-        std::shared_ptr<State> src;
-        std::function<T2(const T&)> fn;
-        T2 operator()(const std::vector<T2>& mat) {
-            size_t idx = mat.size();
-            while (src->materialized.size() <= idx) {
-                T val = src->generator.GetNext(src->materialized);
-                src->materialized.push_back(val);
-            }
-            return fn(src->materialized[idx]);
+    if (length_.IsFinite()) {
+        size_t len = length_.FiniteValue();
+        if (len > 0) {
+            gen_->GetFinite(static_cast<int>(len - 1));
         }
+
+        lab2::DynamicArray<T2> mapped(static_cast<int>(len));
+        for (size_t i = 0; i < len; ++i) {
+            mapped.Set(static_cast<int>(i), f(gen_->GetFinite(static_cast<int>(i))));
+        }
+        return FromDynamicArray(mapped);
+    }
+
+    struct MapContext {
+        GeneratorPtr source;
+        std::function<T2(const T&)> fn;
     };
-    MapRule mr;
-    mr.src = state_;
-    mr.fn  = f;
-    auto* result = new LazySequence<T2>(
-        typename LazySequence<T2>::Rule(mr), nullptr, 0);
-    return result;
+
+    auto ctx = std::make_shared<MapContext>();
+    ctx->source = gen_;
+    ctx->fn = f;
+
+    auto rule = [ctx](const lab2::DynamicArray<T2>& materialized) -> T2 {
+        int index = materialized.GetSize();
+        T value = ctx->source->GetFinite(index);
+        return ctx->fn(value);
+    };
+
+    return new LazySequence<T2>(rule, nullptr, 0);
 }
 
 template <class T>
 LazySequence<T>* LazySequence<T>::Where(std::function<bool(const T&)> pred) {
-    if (state_->length.IsFinite()) {
-        size_t len = state_->length.FiniteValue();
-        EnsureMaterialized(len > 0 ? len - 1 : 0);
-        std::vector<T> filtered;
-        for (size_t i = 0; i < len; ++i)
-            if (pred(state_->materialized[i]))
-                filtered.push_back(state_->materialized[i]);
-        return new LazySequence<T>(filtered.data(), (int)filtered.size());
+    if (length_.IsFinite()) {
+        size_t len = length_.FiniteValue();
+        lab2::DynamicArray<T> filtered;
+        for (size_t i = 0; i < len; ++i) {
+            T value = gen_->GetFinite(static_cast<int>(i));
+            if (pred(value)) {
+                LazySequenceArrayPushBack(filtered, value);
+            }
+        }
+        return FromDynamicArray(filtered);
     }
-    const size_t kLimit = 1000;
-    std::vector<T> filtered;
-    for (size_t i = 0; i < kLimit; ++i) {
-        EnsureMaterialized(i);
-        if (pred(state_->materialized[i]))
-            filtered.push_back(state_->materialized[i]);
+
+    const int kLimit = 1000;
+    lab2::DynamicArray<T> filtered;
+    for (int i = 0; i < kLimit; ++i) {
+        T value = gen_->GetFinite(i);
+        if (pred(value)) {
+            LazySequenceArrayPushBack(filtered, value);
+        }
     }
-    return new LazySequence<T>(filtered.data(), (int)filtered.size());
+    return FromDynamicArray(filtered);
 }
 
 template <class T>
@@ -230,28 +255,33 @@ template <class T2>
 T2 LazySequence<T>::Reduce(std::function<T2(const T2&, const T&)> f, T2 init, size_t count) {
     T2 acc = init;
     for (size_t i = 0; i < count; ++i) {
-        EnsureMaterialized(i);
-        acc = f(acc, state_->materialized[i]);
+        acc = f(acc, gen_->GetFinite(static_cast<int>(i)));
     }
     return acc;
 }
 
 template <class T>
 LazySequence<T>* LazySequence<T>::Zip(LazySequence<T>* other) {
-    size_t count;
-    if (state_->length.IsFinite() && other->state_->length.IsFinite())
-        count = std::min(state_->length.FiniteValue(), other->state_->length.FiniteValue());
-    else
-        count = 20;
-    std::vector<T> pairs;
-    for (size_t i = 0; i < count; ++i) {
-        EnsureMaterialized(i);
-        other->EnsureMaterialized(i);
-        pairs.push_back(state_->materialized[i]);
-        pairs.push_back(other->state_->materialized[i]);
+    if (!other) {
+        throw InvalidArgument("Zip: other sequence is null");
     }
-    return new LazySequence<T>(pairs.data(), (int)pairs.size());
+
+    int count = 0;
+    if (length_.IsFinite() && other->length_.IsFinite()) {
+        count = static_cast<int>(
+            std::min(length_.FiniteValue(), other->length_.FiniteValue()));
+    } else {
+        count = 20;
+    }
+
+    lab2::DynamicArray<T> pairs(count * 2);
+    for (int i = 0; i < count; ++i) {
+        pairs.Set(i * 2, gen_->GetFinite(i));
+        pairs.Set(i * 2 + 1, other->gen_->GetFinite(i));
+    }
+    return FromDynamicArray(pairs);
 }
 
 }  // namespace lab4
+
 #endif
