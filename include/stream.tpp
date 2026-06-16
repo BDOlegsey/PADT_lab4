@@ -12,7 +12,7 @@ namespace lab4 {
 namespace {
 
 template <class T>
-void ArrayPushBack(lab2::DynamicArray<T>& array, const T& value) {
+void StreamArrayPushBack(lab2::DynamicArray<T>& array, const T& value) {
     int size = array.GetSize();
     array.Resize(size + 1);
     array.Set(size, value);
@@ -40,7 +40,7 @@ ReadOnlyStream<T>::ReadOnlyStream(const std::string& str,
     std::istringstream input(str);
     std::string token;
     while (input >> token) {
-        ArrayPushBack(data_, deser(token));
+        StreamArrayPushBack(data_, deser(token));
     }
 }
 
@@ -56,7 +56,7 @@ ReadOnlyStream<T>::ReadOnlyStream(const std::string& filename, bool /*is_file*/,
 
     std::string token;
     while (file >> token) {
-        ArrayPushBack(data_, deser(token));
+        StreamArrayPushBack(data_, deser(token));
     }
 }
 
@@ -141,9 +141,9 @@ void WriteOnlyStream<T>::Close() {
 template <class T>
 size_t WriteOnlyStream<T>::Write(const T& item) {
     if (sink_) {
-        ArrayPushBack(*sink_, item);
+        StreamArrayPushBack(*sink_, item);
     } else {
-        ArrayPushBack(internal_, item);
+        StreamArrayPushBack(internal_, item);
     }
     return ++position_;
 }
